@@ -416,7 +416,7 @@ export default function Home() {
     return (
       <div className='fixed inset-0 bg-pink-200 flex flex-col justify-center items-center'>
         <div className='animate-spin rounded-full h-16 w- 같이 가져오겠습니다.16 border-t-4 border-b-4 border-purple-600'></div>
-        <h2 className={`${ClimateCrisis.className} text-3xl uppercase text-purple-600 mt-4`}>
+        <h2 className={`${ClimateCrisis.className} text-3xl uppercase text-purple-600 mt-4 text-center`}>
           Loading Pooja's Birthday Bash!
         </h2>
       </div>
