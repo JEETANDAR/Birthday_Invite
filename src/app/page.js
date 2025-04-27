@@ -55,7 +55,7 @@ export default function Home() {
 useEffect(() => {
   const calculateTimeLeft = () => {
     const now = new Date()
-    const targetDate = new Date('2025-05-07T19:00:00') // May 7, 2025 at 7 PM
+    const targetDate = new Date('2025-05-08T19:00:00') // May 7, 2025 at 7 PM
     const difference = targetDate - now
     
     if (difference > 0) {
@@ -801,7 +801,7 @@ useEffect(() => {
               <h2
                 className={`${ClimateCrisis.className} text-sky-200 uppercase text-lg md:text-2xl pixel-text`}
               >
-                7 May
+                8 May
               </h2>
               <span className={`${Honk.className} text-lg md:text-2xl`}>7 PM</span>
             </div>
