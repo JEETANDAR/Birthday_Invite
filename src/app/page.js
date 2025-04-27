@@ -48,34 +48,49 @@ export default function Home() {
   const [gameStarted, setGameStarted] = useState(false)
   const [quizAnswers, setQuizAnswers] = useState({})
   const [cakeCandlesLit, setCakeCandlesLit] = useState(false)
-  const [activeFeature, setActiveFeature] = useState(null) // null, 'countdown', 'gift', 'game', 'soundtrack', 'cake', 'quiz'
+  const [activeFeature, setActiveFeature] = useState(null)
+  const [showRSVPForm, setShowRSVPForm] = useState(false)
+  const [rsvpForm, setRSVPForm] = useState({
+    name: "",
+    email: "",
+    attending: "yes",
+    message: ""
+  })
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Loading page effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false)
+    }, 3000) // Show loading screen for 3 seconds
+    
+    return () => clearTimeout(timer)
+  }, [])
 
   // Countdown timer
- // Countdown timer
-useEffect(() => {
-  const calculateTimeLeft = () => {
-    const now = new Date()
-    const targetDate = new Date('2025-05-08T19:00:00') // May 7, 2025 at 7 PM
-    const difference = targetDate - now
-    
-    if (difference > 0) {
-      setTimeLeft({
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60),
-      })
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date()
+      const targetDate = new Date('2025-05-08T19:00:00')
+      const difference = targetDate - now
+      
+      if (difference > 0) {
+        setTimeLeft({
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+          seconds: Math.floor((difference / 1000) % 60),
+        })
+      }
     }
-  }
-  
-  calculateTimeLeft()
-  const timer = setInterval(calculateTimeLeft, 1000)
-  
-  return () => clearInterval(timer)
-}, [])
+    
+    calculateTimeLeft()
+    const timer = setInterval(calculateTimeLeft, 1000)
+    
+    return () => clearInterval(timer)
+  }, [])
 
-
-  // Mini-game setup
+  // Mini-game setup with touch controls
   useEffect(() => {
     if (!gameCanvasRef.current || !gameStarted) return
     
@@ -92,7 +107,7 @@ useEffect(() => {
         this.width = width
         this.height = height
         this.color = color
-        this.type = type // 'present' or 'bomb'
+        this.type = type
         this.speed = Math.random() * 3 + 1
       }
       
@@ -104,7 +119,6 @@ useEffect(() => {
           ctx.fillRect(this.x + 5, this.y + 5, this.width - 10, 5)
           ctx.fillRect(this.x + this.width/2 - 2.5, this.y, 5, this.height)
         } else {
-          // Draw bomb
           ctx.beginPath()
           ctx.arc(this.x + this.width/2, this.y + this.height/2, this.width/2, 0, Math.PI * 2)
           ctx.fill()
@@ -117,7 +131,6 @@ useEffect(() => {
         this.y += this.speed
         if (this.y > canvas.height) {
           if (this.type === 'present') {
-            // Missed present - small penalty
             setGameScore(prev => Math.max(0, prev - 1))
           }
           return false
@@ -138,7 +151,6 @@ useEffect(() => {
       draw() {
         ctx.fillStyle = this.color
         ctx.fillRect(this.x, this.y, this.width, this.height)
-        // Handle
         ctx.beginPath()
         ctx.moveTo(this.x + 10, this.y)
         ctx.lineTo(this.x + 15, this.y - 10)
@@ -157,27 +169,56 @@ useEffect(() => {
     
     // Handle keyboard
     const keys = {}
-    window.addEventListener('keydown', (e) => {
+    const handleKeyDown = (e) => {
       keys[e.key] = true
       if (e.key === 'ArrowLeft') player.dx = -player.speed
       if (e.key === 'ArrowRight') player.dx = player.speed
-    })
+    }
     
-    window.addEventListener('keyup', (e) => {
+    const handleKeyUp = (e) => {
       keys[e.key] = false
       if (e.key === 'ArrowLeft' && player.dx < 0) player.dx = 0
       if (e.key === 'ArrowRight' && player.dx > 0) player.dx = 0
-    })
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    
+    // Handle touch controls
+    let touchX = null
+    const handleTouchStart = (e) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      touchX = e.touches[0].clientX - rect.left
+    }
+    
+    const handleTouchMove = (e) => {
+      e.preventDefault()
+      if (touchX !== null) {
+        const rect = canvas.getBoundingClientRect()
+        const newTouchX = e.touches[0].clientX - rect.left
+        const deltaX = newTouchX - touchX
+        player.dx = deltaX * 0.1
+        touchX = newTouchX
+      }
+    }
+    
+    const handleTouchEnd = () => {
+      player.dx = 0
+      touchX = null
+    }
+    
+    canvas.addEventListener('touchstart', handleTouchStart)
+    canvas.addEventListener('touchmove', handleTouchMove)
+    canvas.addEventListener('touchend', handleTouchEnd)
     
     // Game loop
     let lastSpawnTime = 0
-    const spawnRate = 1000 // ms
+    const spawnRate = 1000
     
     const gameLoop = (timestamp) => {
-      // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       
-      // Spawn new objects
       if (timestamp - lastSpawnTime > spawnRate) {
         const type = Math.random() > 0.2 ? 'present' : 'bomb'
         const color = type === 'present' ? 
@@ -194,11 +235,9 @@ useEffect(() => {
         lastSpawnTime = timestamp
       }
       
-      // Update and draw objects
       gameObjects = gameObjects.filter(obj => {
         const stillActive = obj.update()
         
-        // Check collision with player
         if (stillActive &&
             obj.y + obj.height > player.y &&
             obj.x < player.x + player.width &&
@@ -215,11 +254,9 @@ useEffect(() => {
         return stillActive
       })
       
-      // Update and draw player
       player.update()
       player.draw()
       
-      // Draw score
       ctx.fillStyle = '#000'
       ctx.font = '20px Arial'
       ctx.fillText(`Score: ${gameScore}`, 10, 30)
@@ -231,72 +268,13 @@ useEffect(() => {
     
     return () => {
       cancelAnimationFrame(animationFrameId)
-      window.removeEventListener('keydown', () => {})
-      window.removeEventListener('keyup', () => {})
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      canvas.removeEventListener('touchstart', handleTouchStart)
+      canvas.removeEventListener('touchmove', handleTouchMove)
+      canvas.removeEventListener('touchend', handleTouchEnd)
     }
   }, [gameStarted, gameScore])
-
-  // Virtual cake interaction
-  // useEffect(() => {
-  //   if (!cakeCanvasRef.current) return
-    
-  //   const canvas = cakeCanvasRef.current
-  //   const ctx = canvas.getContext('2d')
-    
-  //   // Draw cake
-  //   const drawCake = () => {
-  //     // Cake base
-  //     ctx.fillStyle = '#F9C5C5'
-  //     ctx.beginPath()
-  //     ctx.roundRect(50, 100, 200, 100, [0, 0, 20, 20])
-  //     ctx.fill()
-      
-  //     // Frosting
-  //     ctx.fillStyle = '#FFEBEE'
-  //     ctx.beginPath()
-  //     ctx.roundRect(50, 80, 200, 20, [20, 20, 0, 0])
-  //     ctx.fill()
-      
-  //     // Candles
-  //     for (let i = 0; i < 5; i++) {
-  //       ctx.fillStyle = cakeCandlesLit ? '#FFD700' : '#888'
-  //       ctx.fillRect(80 + (i * 30), 50, 10, 30)
-        
-  //       if (cakeCandlesLit) {
-  //         // Flame
-  //         ctx.fillStyle = '#FF5252'
-  //         ctx.beginPath()
-  //         ctx.arc(85 + (i * 30), 45, 5, 0, Math.PI * 2)
-  //         ctx.fill()
-  //       }
-  //     }
-      
-  //     // Message
-  //     ctx.fillStyle = '#000'
-  //     ctx.font = '16px Arial'
-  //     ctx.fillText(cakeCandlesLit ? 'Make a wish!' : 'Click to light candles!', 80, 180)
-  //   }
-    
-  //   // Handle clicks
-  //   const handleClick = (e) => {
-  //     const rect = canvas.getBoundingClientRect()
-  //     const x = e.clientX - rect.left
-  //     const y = e.clientY - rect.top
-      
-  //     // Check if click is near candles
-  //     if (y >= 50 && y <= 80 && x >= 80 && x <= 230) {
-  //       setCakeCandlesLit(true)
-  //       setTimeout(() => setCakeCandlesLit(false), 5000) // Candles go out after 5 seconds
-  //     }
-  //   }
-    
-  //   canvas.addEventListener('click', handleClick)
-  //   drawCake()
-    
-  //   return () => {
-  //     canvas.removeEventListener('click', handleClick)
-  //   }
-  // }, [cakeCandlesLit])
 
   const handleMouseMove = (event) => {
     if (!confettiRef.current) return
@@ -380,7 +358,7 @@ useEffect(() => {
 
   const handleSendGift = () => {
     alert(`Thank you for your virtual gift of ${giftAmount}! 🎁`)
-    setGiftAmount(10) // Reset to default
+    setGiftAmount(10)
   }
 
   const startGame = () => {
@@ -394,6 +372,26 @@ useEffect(() => {
       ...prev,
       [questionId]: answer
     }))
+  }
+
+  const handleRSVPFormChange = (e) => {
+    const { name, value } = e.target
+    setRSVPForm(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleRSVPSubmit = (e) => {
+    e.preventDefault()
+    alert(`Thank you, ${rsvpForm.name}, for your RSVP! Your message has been received.`)
+    setShowRSVPForm(false)
+    setRSVPForm({
+      name: "",
+      email: "",
+      attending: "yes",
+      message: ""
+    })
   }
 
   const quizQuestions = [
@@ -413,6 +411,17 @@ useEffect(() => {
       options: ["Cocktails", "Mocktails"]
     }
   ]
+
+  if (isLoading) {
+    return (
+      <div className='fixed inset-0 bg-pink-200 flex flex-col justify-center items-center'>
+        <div className='animate-spin rounded-full h-16 w- 같이 가져오겠습니다.16 border-t-4 border-b-4 border-purple-600'></div>
+        <h2 className={`${ClimateCrisis.className} text-3xl uppercase text-purple-600 mt-4`}>
+          Loading Pooja's Birthday Bash!
+        </h2>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -459,7 +468,6 @@ useEffect(() => {
           >
             Countdown
           </button>
-        
           <button 
             onClick={() => setActiveFeature(activeFeature === 'gift' ? null : 'gift')}
             className={`${Honk.className} text-lg px-3 py-1 ${activeFeature === 'gift' ? 'bg-yellow-400' : 'bg-blue-400'} pixel-border`}
@@ -478,12 +486,6 @@ useEffect(() => {
           >
             Soundtrack
           </button>
-          {/* <button 
-            onClick={() => setActiveFeature(activeFeature === 'cake' ? null : 'cake')}
-            className={`${Honk.className} text-lg px-3 py-1 ${activeFeature === 'cake' ? 'bg-yellow-400' : 'bg-blue-400'} pixel-border`}
-          >
-            Virtual Cake
-          </button> */}
           <button 
             onClick={startGame}
             className={`${Honk.className} text-lg px-3 py-1 ${activeFeature === 'game' ? 'bg-yellow-400' : 'bg-blue-400'} pixel-border`}
@@ -494,60 +496,56 @@ useEffect(() => {
 
         {/* Active Feature Display */}
         {activeFeature === 'countdown' && (
-  <div className='w-full bg-pink-200 pixel-border p-4 flex flex-col items-center'>
-    <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-teal-600 text-center`}>
-      Countdown to Party!
-    </h3>
-    <div className='flex gap-4 mt-2'>
-      <div className='text-center'>
-        <div className={`${Micro5.className} text-4xl text-teal-600`}>
-          {timeLeft.days}
-        </div>
-        <div className={`${ComicNeue.className} text-teal-600`}>
-          Days
-        </div>
-      </div>
-      <div className='text-center'>
-        <div className={`${Micro5.className} text-4xl text-teal-600`}>
-          {timeLeft.hours}
-        </div>
-        <div className={`${ComicNeue.className} text-teal-600`}>
-          Hours
-        </div>
-      </div>
-      <div className='text-center'>
-        <div className={`${Micro5.className} text-4xl text-teal-600`}>
-          {timeLeft.minutes}
-        </div>
-        <div className={`${ComicNeue.className} text-teal-600`}>
-          Minutes
-        </div>
-      </div>
-      <div className='text-center'>
-        <div className={`${Micro5.className} text-4xl text-teal-600`}>
-          {timeLeft.seconds}
-        </div>
-        <div className={`${ComicNeue.className} text-teal-600`}>
-          Seconds
-        </div>
-      </div>
-    </div>
-    {/* <Image src='/countdown.gif' width={100} height={100} alt='Countdown' className='mt-2' /> */}
-  </div>
-)}
+          <div className='w-full bg-pink-200 pixel-border p-4 flex flex-col items-center'>
+            <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-teal-600 text-center`}>
+              Countdown to Party!
+            </h3>
+            <div className='flex gap-4 mt-2'>
+              <div className='text-center'>
+                <div className={`${Micro5.className} text-4xl text-teal-600`}>
+                  {timeLeft.days}
+                </div>
+                <div className={`${ComicNeue.className} text-teal-600`}>
+                  Days
+                </div>
+              </div>
+              <div className='text-center'>
+                <div className={`${Micro5.className} text-4xl text-teal-600`}>
+                  {timeLeft.hours}
+                </div>
+                <div className={`${ComicNeue.className} text-teal-600`}>
+                  Hours
+                </div>
+              </div>
+              <div className='text-center'>
+                <div className={`${Micro5.className} text-4xl text-teal-600`}>
+                  {timeLeft.minutes}
+                </div>
+                <div className={`${ComicNeue.className} text-teal-600`}>
+                  Minutes
+                </div>
+              </div>
+              <div className='text-center'>
+                <div className={`${Micro5.className} text-4xl text-teal-600`}>
+                  {timeLeft.seconds}
+                </div>
+                <div className={`${ComicNeue.className} text-teal-600`}>
+                  Seconds
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {activeFeature === 'gift' && (
           <div className='w-full bg-yellow-200 pixel-border p-4 flex flex-col items-center'>
             <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-orange-600 text-center`}>
-  Send a Virtual Gift
-</h3>
-<Image src='/gift.png' width={80} height={80} alt='Gift' className='my-2' />
-<div className={`${ComicNeue.className} text-center mb-2 text-orange-600 font-bold`}>
-  Select an amount to gift Pooja for her birthday!
-</div>
-
-
-
+              Send a Virtual Gift
+            </h3>
+            <Image src='/gift.png' width={80} height={80} alt='Gift' className='my-2' />
+            <div className={`${ComicNeue.className} text-center mb-2 text-orange-600 font-bold`}>
+              Select an amount to gift Pooja for her birthday!
+            </div>
             <div className='flex gap-2 mb-3'>
               {[5, 10, 20, 50].map(amount => (
                 <button 
@@ -578,17 +576,15 @@ useEffect(() => {
 
         {activeFeature === 'quiz' && (
           <div className='w-full bg-blue-200 pixel-border p-4'>
-           <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-pink-500 text-center`}>
-  Birthday This or That
-</h3>
-
+            <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-pink-500 text-center`}>
+              Birthday This or That
+            </h3>
             <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mt-3'>
               {quizQuestions.map(q => (
                 <div key={q.id} className='bg-white pixel-border p-3'>
-                 <h4 className={`${ComicNeue.className} font-bold text-center mb-2 text-blue-600 bg-white p-2`}>
-  {q.question}
-</h4>
-
+                  <h4 className={`${ComicNeue.className} font-bold text-center mb-2 text-blue-600 bg-white p-2`}>
+                    {q.question}
+                  </h4>
                   <div className='flex flex-col gap-2'>
                     {q.options.map(option => (
                       <button
@@ -604,11 +600,9 @@ useEffect(() => {
               ))}
             </div>
             {Object.keys(quizAnswers).length > 0 && (
-             <div className={`${ComicNeue.className} text-center mt-3 font-bold text-red-600`}>
-             Thanks for playing! {Object.keys(quizAnswers).length}/3 answered
-           </div>
-           
-           
+              <div className={`${ComicNeue.className} text-center mt-3 font-bold text-red-600`}>
+                Thanks for playing! {Object.keys(quizAnswers).length}/3 answered
+              </div>
             )}
           </div>
         )}
@@ -616,20 +610,16 @@ useEffect(() => {
         {activeFeature === 'soundtrack' && (
           <div className='w-full bg-green-200 pixel-border p-4'>
             <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-center text-purple-600 bg-green-200 p-2 rounded`}>
-  Birthday Soundtrack
-</h3>
-            <div className='flex justify-center my-3'>
-              {/* <Image src='/music.gif' width={100} height={100} alt='Music' /> */}
-            </div>
+              Birthday Soundtrack
+            </h3>
             <div className='bg-white pixel-border p-3'>
               <div className='h-[200px] overflow-y-auto old-scrollbar'>
                 {songs.map((song, index) => (
                   <div key={index} className='flex items-center gap-2 mb-2'>
                     <span className={`${Micro5.className} text-xl`}>🎵</span>
                     <span className={`${ComicNeue.className} flex-grow text-purple-600 bg-green-200 p-2 rounded`}>
-  {song}
-</span>
-
+                      {song}
+                    </span>
                     <button className={`${Honk.className} text-sm bg-blue-400 pixel-border px-2`}>
                       Play
                     </button>
@@ -654,37 +644,19 @@ useEffect(() => {
           </div>
         )}
 
-        {activeFeature === 'cake' && (
-          <div className='w-full bg-red-200 pixel-border p-4 flex flex-col items-center'>
-            <h3 className={`${ClimateCrisis.className} text-2xl uppercase`}>Virtual Birthday Cake</h3>
-            <canvas 
-              ref={cakeCanvasRef} 
-              width={300} 
-              height={200}
-              className='border-4 border-white bg-pink-100 my-3'
-            />
-            <div className={`${ComicNeue.className} text-center`}>
-              {cakeCandlesLit 
-                ? 'Make a wish before the candles go out!' 
-                : 'Click on the candles to light them!'}
-            </div>
-          </div>
-        )}
-
         {activeFeature === 'game' && (
           <div className='w-full bg-orange-200 pixel-border p-4 flex flex-col items-center'>
             <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-blue-600 bg-peach-200 p-2 rounded text-center`}>
-  Present Catcher Game
-</h3>
-<div className={`${ComicNeue.className} text-center mb-2 text-blue-600 bg-peach-200 p-4 rounded`}>
-  Use arrow keys to move. Catch presents (5pts), avoid bombs (-10pts)!
-</div>
-
+              Present Catcher Game
+            </h3>
+            <div className={`${ComicNeue.className} text-center mb-2 text-blue-600 bg-peach-200 p-4 rounded`}>
+              Use arrow keys or swipe to move. Catch presents (5pts), avoid bombs (-10pts)!
+            </div>
             <canvas 
               ref={gameCanvasRef} 
               width={300} 
               height={400}
-              className='border-4 border-white bg-white my-2'
+              className='border-4 border-white bg-white my-2 touch-none'
             />
             {!gameStarted ? (
               <button 
@@ -700,7 +672,6 @@ useEffect(() => {
         )}
 
         <div className='grid grid-cols-1 md:grid-cols-[1fr_2fr_1fr] gap-3 p-3'>
-          {/* Party Smart Box */}
           <div className='bg-[#BC912C] relative p-5 pixel-border flex flex-col justify-center items-center'>
             <Image
               src='/capsules.png'
@@ -723,7 +694,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Homecooked Section */}
           <div className='pixel-border bg-red-500 p-5 flex flex-col items-center justify-between'>
             <h2
               className={`${ClimateCrisis.className} uppercase text-2xl md:text-3xl pixel-text`}
@@ -758,7 +728,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Cake Section */}
           <div className='relative flex justify-center items-center'>
             <Image
               src='/cake.png'
@@ -774,7 +743,6 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Sun/Cloud Time Section */}
           <div className='p-2 pixel-border relative bg-gradient-to-b from-blue-500 to-sky-400 flex flex-col justify-center items-center'>
             <Image
               src='/sun.png'
@@ -814,7 +782,6 @@ useEffect(() => {
             />
           </div>
 
-          {/* Drinking Games + Wifi/RSVP */}
           <div className='flex flex-col gap-3'>
             <div className='pixel-border h-full p-5 bg-cyan-300 flex flex-col md:flex-row justify-between items-center gap-2'>
               <div className='bg-white pixel-border'>
@@ -844,28 +811,25 @@ useEffect(() => {
                   Join Wifi
                 </span>
                 <span className={`${ComicNeue.className} font-bold`}>
-                  username
+                  username: pooja's
                 </span>
                 <span className={`${ComicNeue.className} font-bold`}>
-                  password
+                  password: cutiepie
                 </span>
               </div>
               <div className='pixel-border bg-emerald-500 p-5 w-full h-full flex justify-center items-center'>
-  <a href="https://google.com" target="_blank" rel="noopener noreferrer">
-    <Image
-      src='/rsvp.gif'
-      width={120}
-      height={120}
-      alt='RSVP'
-      className='bounce cursor-pointer'
-    />
-  </a>
-</div>
-
+                <Image
+                  src='/rsvp.gif'
+                  width={120}
+                  height={120}
+                  alt='RSVP'
+                  className='bounce cursor-pointer'
+                  onClick={() => setShowRSVPForm(true)}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Playlist Section */}
           <div className='bg-yellow-200 pixel-border p-2'>
             <div className='bg-yellow-400 pixel-border p-2 flex flex-col justify-center items-center'>
               <h3
@@ -890,7 +854,6 @@ useEffect(() => {
                   </div>
                 ))}
               </div>
-              
               <input 
                 type="file" 
                 ref={songFileInputRef}
@@ -899,7 +862,6 @@ useEffect(() => {
                 accept="audio/*"
                 multiple
               />
-              
               <button
                 onClick={handleAddSongs}
                 className={`text-blue-500 ${ComicNeue.className} font-bold text-lg underline mt-2 flex items-center`}
@@ -914,14 +876,12 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* See you soon GIF */}
           <div className='flex flex-col items-center w-full'>
             <h3
               className={`${ClimateCrisis.className} text-center uppercase text-fuchsia-300 p-2 md:p-5 text-2xl md:text-3xl pixel-text`}
             >
               See you soon!
             </h3>
-
             <div className='relative w-full flex justify-center items-center'>
               <Image
                 alt='friends'
@@ -933,14 +893,12 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Coming Soon / Photo Gallery */}
           <div className='pixel-border bg-stone-600 h-full flex flex-col justify-center items-center p-3'>
             <h3
               className={`${ClimateCrisis.className} text-center uppercase text-stone-400 p-3 text-2xl md:text-3xl pixel-text`}
             >
               {photos.length > 0 ? "Party Photos" : "Coming Soon..."}
             </h3>
-            
             {photos.length > 0 && (
               <div className='grid grid-cols-2 gap-2 w-full mt-2 max-h-64 overflow-y-auto old-scrollbar p-2'>
                 {photos.map((photo) => (
@@ -961,7 +919,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Photos Upload Section */}
           <div className='pixel-border p-5 bg-pink-300 h-full flex flex-col justify-center items-center'>
             <h3
               className={`${Nabla.className} uppercase text-lime-500 text-2xl md:text-3xl pixel-text`}
@@ -980,7 +937,6 @@ useEffect(() => {
             >
               You can find all your photos on this drive! If you have more, please add them here
             </div>
-            
             <input 
               type="file" 
               ref={photoFileInputRef}
@@ -989,7 +945,6 @@ useEffect(() => {
               accept="image/*"
               multiple
             />
-            
             <button 
               onClick={handleAddPhotos}
               className='bg-gradient-to-b from-blue-300 to-blue-600 hover:from-blue-400 hover:to-blue-700 pixel-border rounded-full px-3 py-1 mt-5'
@@ -1001,7 +956,68 @@ useEffect(() => {
             </button>
           </div>
         </div>
-        
+
+        {/* RSVP Modal */}
+        {showRSVPForm && (
+          <div className='fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50'>
+            <div className='bg-white pixel-border p-6 w-full max-w-md'>
+              <h3 className={`${ClimateCrisis.className} text-2xl uppercase text-center text-purple-600 mb-4`}>
+                RSVP to Pooja's Birthday
+              </h3>
+              <div className='flex flex-col gap-4'>
+                <input
+                  type="text"
+                  name="name"
+                  value={rsvpForm.name}
+                  onChange={handleRSVPFormChange}
+                  placeholder="Your Name"
+                  className='border-2 border-gray-300 p-2 rounded text-black'
+                  required
+                />
+                <input
+                  type="email"
+                  name="email"
+                  value={rsvpForm.email}
+                  onChange={handleRSVPFormChange}
+                  placeholder="Your Email"
+                  className='border-2 border-gray-300 p-2 rounded text-black'
+                  required
+                />
+                <select
+                  name="attending"
+                  value={rsvpForm.attending}
+                  onChange={handleRSVPFormChange}
+                  className='border-2 border-gray-300 p-2 rounded text-black'
+                >
+                  <option value="yes">Yes, I'll be there!</option>
+                  <option value="no">Sorry, can't make it</option>
+                </select>
+                <textarea
+                  name="message"
+                  value={rsvpForm.message}
+                  onChange={handleRSVPFormChange}
+                  placeholder="Message for the Birthday Girl"
+                  className='border-2 border-gray-300 p-2 rounded h-24 text-black'
+                />
+                <div className='flex justify-between'>
+                  <button
+                    onClick={() => setShowRSVPForm(false)}
+                    className={`${Honk.className} text-lg px-4 py-2 bg-red-400 pixel-border`}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRSVPSubmit}
+                    className={`${Honk.className} text-lg px-4 py-2 bg-green-400 pixel-border`}
+                  >
+                    Submit
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <h2 className={`${ClimateCrisis.className} text-red-200 uppercase text-lg md:text-2xl pixel-text text-center mx-auto`}>
             Developed by Jeetandar & Pooja
